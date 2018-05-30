@@ -2,225 +2,279 @@
 """
 Created on Fri May 25 19:34:53 2018
 
-@author: Nicolas
+@author: Liz
 """
-
-# In[]
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-
-import scipy
-
-from scipy.signal import correlate2d
-from scipy import ndimage as ndi
-from skimage.io import imread
-from skimage.filters.thresholding import threshold_otsu
-from skimage.color import rgb2gray,rgb2lab
-from skimage.measure import label
-from skimage.feature import canny
-from skimage.exposure import rescale_intensity
-from skimage.morphology import remove_small_objects
-#from skimage.transform import resize
-#from skimage.morphology import erosion, dilation, opening, closing, white_tophat
-#from skimage.morphology import disk
-
-from skimage.feature import peak_local_max
+#--AGREGAR AL CÓDIGO ORIGINAL--
+from skimage.feature import peak_local_max,canny
 from skimage.feature import match_template
+from skimage.io import imread
+from skimage.color import rgb2gray
 
-
-#Carpetas con diferentes imágenes
+#from skimage.transform import resize
+from skimage.filters.thresholding import threshold_otsu
+from skimage.exposure import rescale_intensity
+ 
+ # In[]
+plt.close('all')
 gen = 'Imagenes/'
 folder_ids = os.listdir(gen)
 #ID's de las imágenes
 image_ids = list()
+
+#t_name = 'template1'#Nombre del template a usar
+r = 50 #radio de referencia
+r_pozo = 110 #radio del pozo
+template = circle(r)
+
 #Creacíon de una matriz que contenga todos los ids, donde por cada fila hay 1 carpeta.
 for i in range(0,len(folder_ids)):
-    image_ids.insert(i, os.listdir(gen + folder_ids[i] + '/') )
-
-
-
-##---Obtención de la dimensión más pequeña
-#heights = []
-#widths=[]
-#
+    image_ids.insert(i, os.listdir(gen + folder_ids[i] + '/') )    
 #for i in range(0,len(folder_ids)):
+i = 2#número del folder
+for j in range(0,len(image_ids[i][:])):
+    PATH = gen + folder_ids[i] + '/' + image_ids[i][j]
+    I = imread(PATH)
+    I_gray = rgb2gray(I)
+    I_edges = canny(I_gray,sigma=0.05)
+    coord = corr2d(I_edges,template,folder_ids[i],image_ids[i][j],j,r_pozo)
+    I_gray = rescale_intensity(I_gray,in_range=(0.1,0.8))
+    m = np.shape(I_gray)
+    I_final = np.ones([m[0],m[1]])
+    for k in range(0,len(coord)):
+#        k = 0
+       I_crop = pozos(I_gray,coord[k],r_pozo)
+       I_otsu = otsu(I_crop,coord[k],r_pozo)
+       I_final = I_final * I_otsu
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.axis('off')
+    ax1.imshow(I_final,cmap='gray')
+    fig.savefig('Resultados_otsu/' + folder_ids[i] + '/' + image_ids[i][j])
+#for i in [3,5]:
+##i = 1#número del folder
 #    for j in range(0,len(image_ids[i][:])):
 #        PATH = gen + folder_ids[i] + '/' + image_ids[i][j]
+#        #    offset = 150
 #        I = imread(PATH)
-#        h,w,d = I.shape
-#        heights.append(h)
-#        widths.append(w)
-#
-##min_h = min(heights)
-##min_w = min(widths)
-#
-#dim = [min(heights),min(widths)]
+#        I_gray = rgb2gray(I)
+#        coord = corr2d(I_gray,t_name,folder_ids[i],image_ids[i][j],j)
 
+#template = imread(t_name + '.png')
+#template_g = rgb2gray(template) 
+ 
+#PATH = gen + folder_ids[0] + '/' + image_ids[0][7]
+#I = imread(PATH)
+#I_gray = rgb2gray(I)
+#print(np.mean(I_gray[:]))
+#I_gray = I_gray - np.mean(I_gray)
 # In[]
-
-t_name = 'template1'
-r = 130
-
-for i in range(0,len(folder_ids)):
-    for j in range(0,len(image_ids[i][:])):
-        PATH = gen + folder_ids[i] + '/' + image_ids[i][j]
-        I = imread(PATH)
-        I_gray = rgb2gray(I)
-        coord = corr2d(I_gray,t_name,folder_ids[i],image_ids[i][j],j)
-        I_final = pozos(I_gray,coord,r)
-        I_final = processing(I_gray,I_final)
-        scipy.misc.imsave('Resultados/Metodo_uno/' + image_ids[i][j] +  '_re' + '.png' ,I_final)
-    
-# In[] Funciones
-
-#----------Procesado de las imágenes-------------
-def processing(I_gray,I_gray2):
-    #Mejora de contraste en escala de grises
-    I_gray = contrast_basic(I_gray,6)
-    #Método de segmentación en escala de grises
-    BW = otsu(I_gray,I_gray2)
-    #Análisis de conectividad y etiquetado
-#    mask = conectividad(BW,1)
-    return BW
-            
-
-#---------------Correlación cruzada--------------
+PATH = gen + folder_ids[1] + '/' + image_ids[1][0]
+I = imread(PATH)
+I_gray = rgb2gray(I)    
+I_edges = canny(I_gray,sigma=0.05)
+coord = corr2d(I_edges,template,folder_ids[1],image_ids[1][0],0,r_pozo)
+I_gray = rescale_intensity(I_gray,in_range=(0.2,0.8))
+m = np.shape(I_gray)
+I_final = np.ones([m[0],m[1]])
+for k in range(0,len(coord)):
+    I_crop = pozos(I_gray,coord[k],r_pozo)
+    I_otsu = otsu(I_crop,coord[k],r_pozo)
+    I_final = I_final * I_otsu
+fig = plt.figure()
+ax1 = fig.add_subplot(111)
+ax1.axis('off')
+ax1.imshow(I_final,cmap='gray')
+# In[]   
+def otsu(I_gray,centro,r):
+    I = I_gray[(centro[1]-r):(centro[1]+r),(centro[0]-r):(centro[0]+r)]
+    prom = np.mean(I)
+    thresh = threshold_otsu(I)*prom
+    BW = I_gray > thresh
+    BW = 1 - BW
+    return BW 
+   
+ 
+# In[] Correlación cruzada normalizada de skimage
+#template = imread('template_re2.png')
+#template_g = rgb2gray(template)
+#template_g = template_g -  np.mean(template_g)
+#result = match_template(I_gray,template_g,pad_input = True)
+###máximos locales de la correlación cruzada para encontrar otras coincidencias
+#coordinates = peak_local_max(result, min_distance=125)
+##
+#fig, (ax_orig, ax_template, ax_corr) = plt.subplots(1, 3)
+#ax_orig.imshow(I_gray, cmap='gray')
+#ax_orig.set_title('Original')
+#ax_orig.set_axis_off()
+#ax_template.imshow(template_g, cmap='gray')
+#ax_template.set_title('Template')
+#ax_template.set_axis_off()
+#ax_corr.imshow(result, cmap='gray')
+#ax_corr.set_title('Correlación cruzada')
+#ax_corr.set_axis_off()
+#for i in range(0,len(coordinates)):
+#    ax_orig.plot(coordinates[i,1], coordinates[i,0], 'ro')
+#fig.show()
+ 
+ 
 #--Entrada: Imagen en escala de grises I_gray y template para hacer la
-#   correlación cruzada.
-#-Salida: Coordenadas de los centros de la correlación cruzada.
-#- Desplega la gráfica con la imagen original, el template y la correlación.
-def corr2d(I_gray,t_name,folder,name,ind):
-    template = imread(t_name + '.png')
-    template_g = rgb2gray(template)
-#    template_g = template_g -  np.mean(template_g)
-    result = match_template(I_gray,template_g,pad_input = True)
-    coordinates = peak_local_max(result, min_distance=125)
+#@@ -86,46 +93,46 @@
+ #Guarda las imágenes qué dieron como resultado del template empleado en la
+ # la dirección Resultados_template/nombre_folder/nombre_imagen
+     
+#def corr2d(I_gray,t_name,folder,name,ind):
+#    template = imread(t_name + '.png')
+#    template_g = rgb2gray(template)
+def corr2d(BW,template,folder,name,ind,r_pozo):
+    result = match_template(I_edges,template,pad_input = True)
+    coordinates = peak_local_max(result, min_distance=160)#centro del pequeño 
+    if coordinates[0][1] < coordinates[1][1]:
+        y = coordinates[0][0]-r_pozo
+        x = coordinates[0][1]+r_pozo
+    else:
+        y = coordinates[1][0]-r_pozo
+        x = coordinates[1][1]+r_pozo
+    #coordenadas de los otros pozos por simetría
+    centros = [[x,y],[x,y+2*r_pozo]]
+    for i in range(0,2):
+        centros.append([centros[i][0] + 2*r_pozo,centros[i][1] ])
+        centros.append([centros[i][0] - 2*r_pozo,centros[i][1] ])
+
+    centros = sorted(centros)
 #    fig, (ax_orig, ax_template, ax_corr) = plt.subplots(1, 3)
-#    ax_orig.imshow(I_gray, cmap='gray')
+#    fig = plt.figure()
+#    ax_orig = fig.add_subplot(111)
+##    ax_orig.imshow(I_gray, cmap='gray')
+#    ax_orig.imshow(BW, cmap='gray')
 #    ax_orig.set_title('Original')
 #    ax_orig.set_axis_off()
-#    ax_template.imshow(template_g, cmap='gray')
-#    ax_template.set_title('Template')
-#    ax_template.set_axis_off()
-#    ax_corr.imshow(result, cmap='gray')
-#    ax_corr.set_title('Correlación cruzada')
-#    ax_corr.set_axis_off()
-#    for i in range(0,len(coordinates)):
-#        ax_orig.plot(coordinates[i,1], coordinates[i,0], 'ro')
-#    fig.show()
+##    ax_template.imshow(template, cmap='gray')
+##    ax_template.set_title('Template')
+##    ax_template.set_axis_off()
+##    ax_corr.imshow(result, cmap='gray')
+##    ax_corr.set_title('Correlación cruzada')
+##    ax_corr.set_axis_off()
+##    for i in range(0,len(coordinates)):
+##        ax_orig.plot(coordinates[i,1], coordinates[i,0], 'ro')
+#    for i in range(0,len(centros)):
+#        ax_orig.plot(centros[i][0],centros[i][1],'ro')
+#    fig.show()   
+#    fig.savefig('Resultados_template/' + folder + '/' + name)
 #    fig.savefig('Resultados_template/' + t_name + '/' + folder + '/' + name)
-    return coordinates
-#---------------Seccionamiento por pozo-------------------
-#-Entradas: Imagen en escala de grises I_gray, coordenadas de los centros
-#coordinates, las dimensiones más pequeñas dim como una lista de 2, y el radio.
-#-Salidas: Imagen con los pozos seccionados I_new y grafica la imagen resultado.
-def pozos(I_gray,coordinates,r):
+    return centros
+    
+#coord = corr2d(edges,template,folder_ids[0],image_ids[0][7],7)
+# In[] Seccionamiento por medio de distancia euclideana
+#I_gray = rgb2gray(I)
+#I_new = np.zeros([636,944])
+#proms = list()
+#r = 130
+#for k in range(0,6):
+#    centro = coordinates[k][:]
+#    for i in range(0,635):
+#        for j in range(0,943):
+#            d = np.sqrt( abs( (centro[0] - i)**2 + (centro[1] - j)**2 ) ) 
+#            if d <= r:
+#                I_new[i,j] = I_gray[i,j]
+#            
+#fig = plt.figure()
+#ax1 = fig.add_subplot(111)
+#ax1.axis('off')
+#ax1.imshow(I_new,cmap='gray')
+ 
+ #-Entradas: Imagen en escala de grises I_gray, coordenadas de los centros
+ #coordinates, las dimensiones más pequeñas dim como una lista de 2, y el radio.
+#@@ -134,44 +141,66 @@ 
+#def corr2d(I_gray,t_name,folder,name,ind):
+# def pozos(I_gray,coordinates,r):
+def pozos(I_gray,centro,r):
     h,w = I_gray.shape
     I_new = np.zeros([h,w])
-    r = 130
+#    for k in range(0,len(coordinates)):
+#    centro = coordinates[k][:]
     for i in range(0,h):
         for j in range(0,w):
-            x = coord[:,0] - i
-            y = coord[:,1] - j
-            d  = np.sqrt(abs( np.square(x) + np.square(y) ))
-            if any(d <= r):
+            d = np.sqrt( abs( (centro[1] - i)**2 + (centro[0] - j)**2 ) ) 
+            if d <= r:
                 I_new[i,j] = I_gray[i,j]
+#    r = 130
+#    for i in range(0,h):
+#        for j in range(0,w):
+#            x = centro[1] - i
+#            y = centro[0] - j
+#            d  = np.sqrt(abs( np.square(x) + np.square(y) ))
+#            if any(d <= r):
+#                I_new[i,j] = I_gray[i,j]
 #    fig = plt.figure()
 #    ax1 = fig.add_subplot(111)
 #    ax1.axis('off')
 #    ax1.imshow(I_new,cmap='gray')
     return I_new
 
+#h,w = I_gray.shape
+#I_new = np.zeros([h,w])
+#r = 130
+#for i in range(0,h):
+#    for j in range(0,w):
+#        x = coord[:,0] - i
+#        y = coord[:,1] - j
+#        d  = np.sqrt(abs( np.square(x) + np.square(y) ))
+#        if any(d <= r):
+#            I_new[i,j] = I_gray[i,j]
+            
+            
+#list comprehension
+
+#>>> [(x, y) for x in [1,2,3] for y in [3,1,4] if x != y]
+
+#d  = np.sqrt(abs(centro-dim))
+#I_gray = resize(I_gray,dim)
+#I_new = pozos(I_gray,coord,r)
 
 
-#-----------Mejora de contraste------------------ CORREGIR
-#- Entrada: Imagen en esquema RGB m_I y selector sel.
-#- Salida: Imagen con la mejora de contraste elegida.
-def contrast_basic(m_I,sel):
-    if sel == 1:
-        I_out = (m_I/255)**3
-    elif sel == 2:
-        I_out = (m_I/255)**2
-    elif sel == 3:
-        I_out = np.sqrt((m_I/255))
-    elif sel == 4:
-        I_out = np.exp(-(m_I/255))
-    elif sel == 5:
-        I_out = (m_I/255)*0.3 + 0.2
-    elif sel == 6:
-        I_out = rescale_intensity(m_I,in_range=(0.2,0.8))
-    return I_out
+# In[] Promedio de ensambles
+#Mínima dimensión de las imágenes (CORREGIR)
+min_h = 606
+min_w = 914
 
-#-------------Segmentación por Otsu--------
-#- Entrada: Imagen en esquema escala de grises m_I
-#- Salida: Mascara en blanco y negro.
-def otsu(I_gray,I_gray2):
-    prom = np.mean(I_gray)
-    thresh = threshold_otsu(I_gray)*prom
-    BW = I_gray2 > thresh
-    return BW
-#----------Segmentación con máscara Sobel -------------
-
-def puntos(I_gray):
-    Maxpix = max(np.ravel(I_gray))
-    H = [[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]
-    I_sharpened = correlate2d(I_gray, H, mode = 'same')
-    I_sharpened = I_sharpened > 0.9*Maxpix
-    return I_sharpened
-
-#--------Segmentación por color -------------
+I_ensamble = np.zeros([606,914])
+#for i in range(0,len(folder_ids)):
+for j in range(0,len(image_ids[1][:])):
+    PATH = gen + folder_ids[1] + '/' + image_ids[1][j]
+    I = imread(PATH)
+    I_gray = rgb2gray(I)
+    I_gray = resize(I_gray,(min_h,min_w))        
+    I_ensamble = I_ensamble + I_gray
     
+I_ensamble = I_ensamble/28
+I_new = pozos(I_gray,coord,r)
+ 
+fig = plt.figure()
+ax1 = fig.add_subplot(111)
+ax1.axis('off')
+ax1.imshow(I_ensamble,cmap='gray')
+ax1.imshow(I_new,cmap='gray')
+ 
+print(np.mean(I_ensamble[:]))
+ 
+scipy.misc.imsave('Resultados/Promedio1.png' ,I_ensamble)
+# In[]
 
-def cie(I):
-    I_cie = rgb2lab(I,illuminant='D65',observer='2')  
-    x = plt.ginput(1)
-    color = I_cie[int(round(x[0][0])),int(round(x[0][1])),1::]
-    m = np.shape(I_cie[:,:,0])
-    umbral = 24
-    IR = rgb2gray(I)
-    IG = rgb2gray(I)
-    IB = rgb2gray(I)
-    IRGB = I
-    for i in range(0,m[0]):
-        for j in range(0,m[1]):
-            pix = I_cie[i,j,1::]
-            dist = np.linalg.norm(color-pix)
-            if dist < umbral:
-                IR[i,j] = I[i,j,0]
-                IG[i,j] = I[i,j,1]
-                IB[i,j] = I[i,j,2]
-                
-    IRGB[:,:,0] = IR   
-    IRGB[:,:,1] = IG 
-    IRGB[:,:,2] = IB
-    return IRGB
+#r = 50
+def circle(r):
+    dim = r*2 + 10
+    Nigerrimo = np.zeros([dim,dim])
+    centro = [dim/2,dim/2]
+    for i in range(0,dim):
+        for j in range(0,dim):
+            d = np.sqrt(abs( (centro[0] - i)**2 + (centro[1] - j)**2 ))
+            if d > r:
+                Nigerrimo[i,j] = 1
+    return Nigerrimo
 
-#--------Segmentación por bordes--------------
+#c = circle(r)
 
-def bordes(I_gray):
-    I_edges = canny(I_gray)
-    fill_I = ndi.binary_fill_holes(I_edges)
-    label_objects, nb_labels = ndi.label(fill_I)
-    sizes = np.bincount(label_objects.ravel())
-    mask_sizes = sizes > 20
-    mask_sizes[0] = 0
-    I_clean = mask_sizes[label_objects]
-    return I_clean
-
-
-#------------Análisis por conectividad -------
-
-def conectividad(m_BW,sel):
-    cont = 0
-    if sel == 1:
-        labeled = label(m_BW,connectivity=2)
-        BW2  = remove_small_objects(labeled,min_size=25,connectivity=8)
-    elif sel == 2:
-        labeled = label(m_BW,connectivity=2)
-        BW2  = remove_small_objects(labeled,min_size=20,connectivity=8)
-        labeled = label(BW2,connectivity=2)
-        cont = max(labeled.ravel())
-    else:
-        pass
-    return labeled,cont
+#fig = plt.figure()
+#ax = fig.add_subplot(111)
+#ax.axis('off')
+#ax.imshow(c,cmap='gray')
