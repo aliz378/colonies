@@ -103,25 +103,7 @@ for i in range(3,len(folder_ids)):
 #sigues ahí??? era unde ide
 
 
-''' error ntaciòn yap bueno veamos quedo besho, guapo qyedo guaperrìmo QuQ
-sòlo que ahora se demora el doble, no me imagino cuanto se demorara 
-cuando lo corrigamos, sera rapido ten fe, quiero ver como funciona en los
-computadores de PSIM, 2 seg ajajajjaja u_u mi ,co mpen los de bioi 8 horas XD
-jajajajaja en serio? a mi se me hacen iguales jajajja espera a que veas control
-per genial :') parece un payaso asi jajajaaj <:.) un payasito de nariz torcida
-lo imperfecto nos hace perfectos, nos hace humanos diría yo, el payaso plin plin 
-no es humano es depredador o: oO correee nuestra única esperanza es Arnold swasagageac
-swagseneger
-creo que con la 3 si podríamos ver el alcance de todo lo que acabamos de hcer
-vi un papa ahhh Sí xDDDDDDD no te vayas a enojar, entonces no me muestres :s
-no es nada raro, ni nada blasfemo diría yo es chistoso. no se jajajaja no sabes que?
-que es ? si chistoso o que, conoces a Richard Feynmann? si es el bum de los fisicos
-pero pues no se, hay 5 papa que tienen estudio en fisica y astronomia
-en serio?, si muchos son fisico o: pues a mi se me hizo gracioso porque esos
-libros son como la biblia de la Física teórica lo se sheldon lo ama
-cómo no hacerlo? es demasiado genialoso ???? qué? te las dejo ver si me muestras
-una tuyas así ... no tengo khe? D: qué pena, a mi no me gustan lass fotos
-
+''' 
 - Parece cómo si rgb2gray cortase la imagen, pero sólo pasa al visualizarla.
 - Las imágenes del 04-09-15 están inclinadas.
 - Problemas de tamaño con la carpeta 11-09-15 (Imagen 7) y con una imagen de
@@ -248,7 +230,18 @@ def pozos3(m_I,centro,r):
                 prom.append([i,j])
     return I_new,prom
 #
-
+def pozos2(m_I,centros,r):
+    h,w = m_I.shape
+    I_new = np.ones([h,w])
+    I_new = np.zeros([h,w])
+    for i in range(0,h):
+        for j in range(0,w):
+            x = centros[:,0] - j
+            y = centros[:,1] - i
+            d  = np.sqrt(abs( np.square(x) + np.square(y) ))
+            if any(d <= r):
+                I_new[i,j] = m_I[i,j]
+    return I_new
 
 #    h,w = m_I.shape
 #    I_new = np.zeros([h,w])
@@ -326,3 +319,42 @@ ax1.axis('off')
 ax1.imshow(I_def,cmap='gray')
 
 #I_lol = color(I,I_gray,centros)
+# In[]
+def otsu_gen(I_gray,centros,r):
+    m = I_gray.shape
+    I_otsugen = np.zeros(m)
+    num_pix = 23# Numero de pixeles para la vecindad    
+    diml = [0,num_pix]    
+#    dima = [0,num_pix]
+    for i in range(0,int(m[0]/num_pix)):
+        dima = [0,num_pix]
+        for j in range(0,int(m[1]/num_pix)):
+            I_crop = I_gray[diml[0]:diml[1],dima[0]:dima[1]]          
+#            prom = np.mean(I_crop)
+            thresh = threshold_otsu(I_crop) *0.98        
+            I_crop = I_crop > thresh
+            I_crop = 1 - I_crop
+            I_otsugen[diml[0]:diml[1],dima[0]:dima[1]] = I_crop
+            if j == 0:
+                dima = [dima[0] + num_pix,dima[1] + num_pix + 1]
+            else:
+                dima = [dima[0] + num_pix + 1,dima[1] + num_pix + 1]
+        if i == 0:
+            diml = [diml[0] + num_pix,diml[1] + num_pix + 1]
+        else:
+            diml = [diml[0] + num_pix + 1,diml[1] + num_pix + 1]
+    I_otsugen = pozos2(I_otsugen,centros,r)
+
+    labeled = label(I_otsugen,connectivity = 2)
+    BW  = remove_small_objects(labeled,min_size=30,connectivity=8)
+    BW = BW > 0.9
+
+    I_otsugen = I_otsugen * (1-BW)        
+    return I_otsugen
+
+Iotsug = otsu_gen(I_gray,centros,r_pozo)
+
+fig = plt.figure()
+ax1 = fig.add_subplot(111)      
+ax1.axis('off')
+ax1.imshow(Iotsug,cmap='gray')
